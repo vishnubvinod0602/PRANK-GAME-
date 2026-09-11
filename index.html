@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impossible Button 😈</title>
+<style>
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  color: white;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 40%, #302050, #090910 70%);
+}
+h1 {
+  margin: 28px 0 5px;
+  font-size: clamp(32px, 7vw, 55px);
+}
+.subtitle {
+  margin: 0;
+  color: #aaa;
+}
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: 25px;
+  margin: 18px;
+  font-size: 18px;
+}
+.stats span {
+  color: #ff4f91;
+  font-weight: bold;
+}
+#game {
+  position: relative;
+  width: 92vw;
+  height: 65vh;
+  max-width: 1100px;
+  margin: auto;
+  overflow: hidden;
+  border: 2px solid #ffffff18;
+  border-radius: 25px;
+  background: #ffffff07;
+  box-shadow: 0 20px 80px #0008;
+}
+#button {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 18px 32px;
+  border: none;
+  border-radius: 100px;
+  background: linear-gradient(135deg, #ff3b81, #ff0066);
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow:
+    0 8px 30px #ff006655,
+    inset 0 2px 5px #fff5;
+  transition:
+    left var(--speed) ease,
+    top var(--speed) ease,
+    transform .12s;
+}
+#button:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+}
+#button:active {
+  transform: translate(-50%, -50%) scale(.95);
+}
+#message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: #08080fed;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .35s;
+}
+#message.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+#message h2 {
+  margin: 0;
+  font-size: clamp(40px, 9vw, 75px);
+}
+#message p {
+  color: #aaa;
+  font-size: 20px;
+}
+#restart {
+  padding: 13px 25px;
+  border: none;
+  border-radius: 12px;
+  font-size: 17px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.flash {
+  position: fixed;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  pointer-events: none;
+}
+.flash.active {
+  animation: flash .25s;
+}
+@keyframes flash {
+  0% { opacity: .5; }
+  100% { opacity: 0; }
+}
+.shake {
+  animation: shake .25s;
+}
+@keyframes shake {
+  0%,100% { transform: translate(0); }
+  25% { transform: translate(8px,-5px); }
+  50% { transform: translate(-8px,5px); }
+  75% { transform: translate(5px,5px); }
+}
+#fake {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000d;
+  font-size: clamp(35px, 9vw, 80px);
+  font-weight: bold;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+#fake.show {
+  animation: fakeWin 1.1s forwards;
+}
+@keyframes fakeWin {
+  0% {
+    opacity: 0;
+    transform: scale(.7);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+</style>
+</head>
+<body>
+<h1>😈 Impossible Button</h1>
+<p class="subtitle">
+  Catch it 15 times... if you can.
+</p>
+<div class="stats">
+  <div>🎯 Score: <span id="score">0</span>/15</div>
+  <div>🏆 Best: <span id="best">0</span></div>
+</div>
+<div id="game">
+  <button id="button">CLICK ME 😈</button>
+  <div id="message">
+    <h2>🎉 YOU ACTUALLY WON!</h2>
+    <p>You caught the impossible button.</p>
+    <button id="restart">Play Again 🔄</button>
+  </div>
+</div>
+<div id="fake">🎉 YOU WON! 🎉</div>
+<div class="flash" id="flash"></div>
+<script>
+const button = document.getElementById("button");
+const game = document.getElementById("game");
+const scoreText = document.getElementById("score");
+const bestText = document.getElementById("best");
+const message = document.getElementById("message");
+const restart = document.getElementById("restart");
+const fake = document.getElementById("fake");
+const flash = document.getElementById("flash");
+let score = 0;
+let speed = 0.25;
+let best = Number(localStorage.getItem("impossibleBest")) || 0;
+bestText.textContent = best;
+/* -------------------------
+   SOUND ENGINE
+------------------------- */
+let audioContext;
+function sound(type) {
+  try {
+    if (!audioContext) {
+      audioContext =
+        new (window.AudioContext ||
+        window.webkitAudioContext)();
+    }
+    const oscillator =
+      audioContext.createOscillator();
+    const gain =
+      audioContext.createGain();
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    let frequency = 300;
+    if (type === "click") frequency = 500;
+    if (type === "escape") frequency = 180;
+    if (type === "win") frequency = 800;
+    if (type === "fake") frequency = 650;
+    oscillator.frequency.value = frequency;
+    oscillator.type =
+      type === "escape" ? "sawtooth" : "square";
+    gain.gain.setValueAtTime(
+      .08,
+      audioContext.currentTime
+    );
+    gain.gain.exponentialRampToValueAtTime(
+      .001,
+      audioContext.currentTime + .15
+    );
+    oscillator.start();
+    oscillator.stop(
+      audioContext.currentTime + .15
+    );
+  } catch(e) {}
+}
+/* -------------------------
+   MOVE BUTTON
+------------------------- */
+function moveButton() {
+  const gameRect =
+    game.getBoundingClientRect();
+  const buttonRect =
+    button.getBoundingClientRect();
+  const maxX =
+    gameRect.width - buttonRect.width - 20;
+  const maxY =
+    gameRect.height - buttonRect.height - 20;
+  const x =
+    Math.random() * Math.max(maxX, 20) + 10;
+  const y =
+    Math.random() * Math.max(maxY, 20) + 10;
+  button.style.setProperty(
+    "--speed",
+    speed + "s"
+  );
+  button.style.left = x + "px";
+  button.style.top = y + "px";
+  button.style.transform =
+    "translate(0,0) rotate(" +
+    (Math.random() * 12 - 6) +
+    "deg)";
+}
+/* -------------------------
+   ESCAPE
+------------------------- */
+function escapeButton() {
+  sound("escape");
+  moveButton();
+}
+/* -------------------------
+   DESKTOP
+------------------------- */
+button.addEventListener(
+  "mouseenter",
+  () => {
+    if (score < 15) {
+      escapeButton();
+    }
+  }
+);
+/* -------------------------
+   MOBILE
+------------------------- */
+button.addEventListener(
+  "touchstart",
+  e => {
+    if (score < 15) {
+      e.preventDefault();
+      /*
+       * On mobile the button sometimes
+       * moves when touched.
+       */
+      if (Math.random() < .75) {
+        escapeButton();
+      }
+    }
+  },
+  { passive: false }
+);
+/* -------------------------
+   CLICK
+------------------------- */
+button.addEventListener(
+  "click",
+  () => {
+    score++;
+    scoreText.textContent = score;
+    sound("click");
+    /*
+     * Make the button faster.
+     */
+    speed =
+      Math.max(.035, .25 - score * .014);
+    /*
+     * Randomly trigger fake wins.
+     */
+    if (
+      score === 5 ||
+      score === 10 ||
+      (score > 10 && Math.random() < .18)
+    ) {
+      fakeWin();
+    }
+    /*
+     * REAL WIN
+     */
+    if (score >= 15) {
+      realWin();
+      return;
+    }
+    /*
+     * Make button smaller.
+     */
+    const scale =
+      Math.max(.65, 1 - score * .02);
+    button.style.fontSize =
+      (20 * scale) + "px";
+    moveButton();
+  }
+);
+/* -------------------------
+   FAKE WIN
+------------------------- */
+function fakeWin() {
+  sound("fake");
+  fake.classList.remove("show");
+  void fake.offsetWidth;
+  fake.classList.add("show");
+  flash.classList.add("active");
+  setTimeout(() => {
+    flash.classList.remove("active");
+  }, 300);
+}
+/* -------------------------
+   REAL WIN
+------------------------- */
+function realWin() {
+  sound("win");
+  if (score > best) {
+    best = score;
+    localStorage.setItem(
+      "impossibleBest",
+      best
+    );
+    bestText.textContent = best;
+  }
+  button.style.display = "none";
+  message.classList.add("show");
+}
+/* -------------------------
+   RESTART
+------------------------- */
+restart.addEventListener(
+  "click",
+  () => {
+    score = 0;
+    speed = .25;
+    scoreText.textContent = "0";
+    button.textContent =
+      "CLICK ME 😈";
+    button.style.display =
+      "block";
+    button.style.fontSize =
+      "20px";
+    message.classList.remove(
+      "show"
+    );
+    moveButton();
+  }
+);
+/* -------------------------
+   RANDOM TAUNTS
+------------------------- */
+const taunts = [
+  "CLICK ME 😈",
+  "TOO SLOW 😂",
+  "ALMOST! 👀",
+  "NOPE! 🏃",
+  "TRY AGAIN 😏",
+  "CATCH ME!",
+  "HAHA! 😂",
+  "SO CLOSE!",
+  "YOU CAN'T GET ME!",
+  "ONE MORE! 😳"
+];
+setInterval(() => {
+  if (
+    score > 0 &&
+    score < 15 &&
+    Math.random() < .5
+  ) {
+    button.textContent =
+      taunts[
+        Math.floor(
+          Math.random() * taunts.length
+        )
+      ];
+  }
+}, 900);
+/* Initial position */
+setTimeout(
+  moveButton,
+  100
+);
+</script>
+</body>
+</html>
